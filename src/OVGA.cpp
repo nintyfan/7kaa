@@ -351,7 +351,40 @@ void Vga::adjust_brightness(int changeValue)
    vga_front.temp_restore_lock();
 }
 //--------- End of function Vga::adjust_brightness ----------//
+static SDL_TimerID touchId;
+static bool right_emulated;
 
+static Uint32 touch_left(Uint32 interval, void *param)
+{
+
+                mouse.add_event(LEFT_BUTTON_RELEASE);
+      return 0;
+}
+
+static Uint32 touch_timer2(Uint32 interval, void *param)
+{
+				mouse.add_event(RIGHT_BUTTON_RELEASE);
+                right_emulated = true;
+
+                touchId = 0;
+
+	return 0;
+}
+
+
+static Uint32 touch_timer(Uint32 interval, void *param)
+{;
+
+
+
+				mouse.add_event(RIGHT_BUTTON);
+
+				SDL_AddTimer(600, touch_timer2, 0);
+
+
+
+	return 0;
+}
 
 //-------- Begin of function Vga::handle_messages --------//
 void Vga::handle_messages()
@@ -372,7 +405,129 @@ void Vga::handle_messages()
          break;
       case SDL_FINGERDOWN:
          mouse.end_scroll();
-         break;
+          {
+              int logical_x, logical_y;
+               float xscale, yscale;
+               get_window_scale(&xscale, &yscale);
+               logical_x = ((float)event.tfinger.x *config_adv.vga_window_width);
+               logical_y = ((float)event.tfinger.y *config_adv.vga_window_height);
+            if( win_grab_user_mode || win_grab_forced )
+            {
+               int real_x, real_y, do_warp;
+               SDL_GetMouseState(&real_x, &real_y);
+               do_warp = 0;
+               if( !boundary_set )
+                  update_boundary();
+               if( real_x < bound_x1 )
+               {
+                  do_warp = 1;
+                  real_x = bound_x1;
+                  logical_x = mouse.bound_x1;
+               }
+               else if( real_x > bound_x2 )
+               {
+                  do_warp = 1;
+                  real_x = bound_x2;
+                  logical_x = mouse.bound_x2;
+               }
+               if( real_y < bound_y1 )
+               {
+                  do_warp = 1;
+                  real_y = bound_y1;
+                  logical_y = mouse.bound_y1;
+               }
+               else if( real_y > bound_y2 )
+               {
+                  do_warp = 1;
+                  real_y = bound_y2;
+                  logical_y = mouse.bound_y2;
+               }
+               if( do_warp )
+               {
+                  SDL_WarpMouseInWindow(window, real_x, real_y);
+               }
+            }
+            mouse.process_mouse_motion(logical_x, logical_y);
+         }
+         if (!touchId) {
+			touchId = SDL_AddTimer(5000, touch_timer, 0);
+         }
+			break;
+
+      case SDL_FINGERMOTION:
+
+         if (touchId) {
+            SDL_RemoveTimer(touchId);
+			touchId = 0;
+
+
+              mouse.add_event(LEFT_BUTTON);
+              }
+
+              {
+              int logical_x, logical_y;
+           
+               float xscale, yscale;
+               get_window_scale(&xscale, &yscale);
+               logical_x = ((float)event.tfinger.x *config_adv.vga_window_width);
+               logical_y = ((float)event.tfinger.y *config_adv.vga_window_height);
+
+            if( win_grab_user_mode || win_grab_forced )
+            {
+               int real_x, real_y, do_warp;
+               SDL_GetMouseState(&real_x, &real_y);
+               do_warp = 0;
+               if( !boundary_set )
+                  update_boundary();
+               if( real_x < bound_x1 )
+               {
+                  do_warp = 1;
+                  real_x = bound_x1;
+                  logical_x = mouse.bound_x1;
+               }
+               else if( real_x > bound_x2 )
+               {
+                  do_warp = 1;
+                  real_x = bound_x2;
+                  logical_x = mouse.bound_x2;
+               }
+               if( real_y < bound_y1 )
+               {
+                  do_warp = 1;
+                  real_y = bound_y1;
+                  logical_y = mouse.bound_y1;
+               }
+               else if( real_y > bound_y2 )
+               {
+                  do_warp = 1;
+                  real_y = bound_y2;
+                  logical_y = mouse.bound_y2;
+               }
+               if( do_warp )
+               {
+                  SDL_WarpMouseInWindow(window, real_x, real_y);
+               }
+            }
+            mouse.process_mouse_motion(logical_x, logical_y);
+         }
+            break;
+
+		case SDL_FINGERUP:
+              if (touchId) {
+            SDL_RemoveTimer(touchId);
+			touchId = 0;
+
+              }
+
+              if (right_emulated) {
+                right_emulated = false;
+              }
+              else {
+                 mouse.add_event(LEFT_BUTTON);
+                 mouse.add_event(LEFT_BUTTON_RELEASE);
+              }
+
+			break;;
       case SDL_MOUSEWHEEL:
           mouse.process_scroll(event.wheel.x, event.wheel.y * -1);
           break;
@@ -411,6 +566,9 @@ void Vga::handle_messages()
          break;
 
       case SDL_MOUSEMOTION:
+         if (SDL_TOUCH_MOUSEID == event.motion.which) {
+           break;
+         }
          if( mouse_mode == MOUSE_INPUT_ABS )
          {
             int logical_x, logical_y;
@@ -470,6 +628,10 @@ void Vga::handle_messages()
          }
          break;
       case SDL_MOUSEBUTTONDOWN:
+
+         if (SDL_TOUCH_MOUSEID == event.button.which) {
+           break;
+         }
          if( event.button.button == SDL_BUTTON_LEFT )
          {
             mouse.add_event(LEFT_BUTTON);
@@ -481,6 +643,10 @@ void Vga::handle_messages()
          set_window_grab(WINGRAB_FORCE);
          break;
       case SDL_MOUSEBUTTONUP:
+
+            if (SDL_TOUCH_MOUSEID == event.button.which) {
+           break;
+         }
          if( event.button.button == SDL_BUTTON_LEFT )
          {
             mouse.add_event(LEFT_BUTTON_RELEASE);
